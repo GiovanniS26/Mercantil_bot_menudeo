@@ -1,5 +1,3 @@
-# version 1 para un dispositivo
-
 import os
 import time
 import xml.etree.ElementTree as ET
@@ -7,186 +5,303 @@ import uiautomator2 as u2
 import tkinter as tk
 from tkinter import messagebox
 import threading
-
+import adbutils
 
 APP_PACKAGE = "com.mercantilbanco.mercantilmovil"
 
-# Funciones para controlar el bot
+# -------------------------
+#       LÓGICA DEL BOT
+# -------------------------
 
-# Verificar que la app del banco esté abierta
-def is_app_open():
+
+def is_app_open(d):
+    """
+    Verifica que la aplicación del banco esté abierta en primer plano.
+    """
     try:
-        # Obtener información de la aplicación en primer plano
         current_app = d.app_current()
-        current_package = current_app['package']
-        
-        # Verificar si el paquete en primer plano es el de la app
+        current_package = current_app["package"]
         return current_package == APP_PACKAGE
-    except Exception as e:
+    except:
         return False
 
-# Loguearse en el banco
-def login():
-    global password_entry, bot_status
 
-    password_input = d(text="Clave de Internet")
-    if password_input.exists and bot_status:
-        if password_entry.get() is None or password_entry.get() == "":
-            bot_status = False
-            update_buttons()
-        password_input.send_keys(password_entry.get())
-        d(text="Ingresar").click()
-        time.sleep(2)
+def login(d, password, bot_status):
+    """
+    Inicia sesión si es que el botón 'Ingresar' está disponible.
+    Se encarga de enviar la contraseña si el usuario la especificó.
+    """
+    if not bot_status:
+        return
+
+    # Usamos click_exists con timeout para esperar a que aparezca el botón 'Ingresar'
+    if d(text="Ingresar").exists:
+        # Buscamos el campo de contraseña (android.widget.EditText)
+        password_input = d(className="android.widget.EditText")
+        if password_input.wait(timeout=2):  # Espera a que aparezca el EditText
+            if password:  # Si el usuario ingresó una contraseña en la interfaz
+                password_input.send_keys(password)
+            # Hacemos click en 'Ingresar' (por si no lo detectó click_exists anterior)
+            d(text="Ingresar").click_exists(timeout=1)
+
+        # Espera breve (tiempo de respuesta del servidor)
+        time.sleep(
+            2
+        )  # <-- Aquí puedes intentar reemplazar con un .wait() de la siguiente vista
 
 
-# Hacer tap en el botón que despliega el menú
-def tap_menu_button():
+def tap_menu_button(d):
+    """
+    Hace tap en el botón que despliega el menú.
+    Actualmente usa coordenadas fijas (clic en 50% ancho, ~90% alto).
+    """
     screen_size = d.window_size()
     screen_width = screen_size[0]
     screen_height = screen_size[1]
 
     # Coordenadas relativas
-
     rel_x = 540 / screen_width  # 50% del ancho
     rel_y = 2159 / screen_height  # 90% del alto
-    # Convertir coordenadas relativas a absolutas en tiempo de ejecución
+
+    # Convertir coordenadas relativas a absolutas
     abs_x = int(rel_x * screen_width)
     abs_y = int(rel_y * screen_height)
 
-    # Hacer tap en las coordenadas calculadas
     d.click(abs_x, abs_y)
 
 
-# Entrar a Operaciones de Menudeo
-def enter_menudeo():
-    if (
-        d(text="Operaciones de Menudeo").exists
-        and not d(text="¡Uuups! Algo ha salido mal...").exists
-        and bot_status
-    ):
-        d(text="Operaciones de Menudeo").click()
-        time.sleep(1)
-    if d(text="Comprar divisas").exists and bot_status:
-        d(text="Comprar divisas").click()
+def enter_menudeo(d, bot_status):
+    """
+    Navega hasta "Operaciones de Menudeo" y luego "Comprar divisas".
+    Maneja la validación de "Uuups! Algo ha salido mal..."
+    """
+    if not bot_status:
+        return
+
+    # Si existe el texto 'Operaciones de Menudeo', clic
+    if d(text="Operaciones de Menudeo").click_exists(timeout=1):
+        pass
+    
+    # Ahora revisamos si hay "Comprar divisas"
+    if d(text="Comprar divisas").click_exists(timeout=1):
+        # Esperamos la respuesta del servidor
         time.sleep(2)
-    while (
+
+    # Mientras aparezca el mensaje de error, volvemos a intentar
+    while bot_status and (
         d(
             text="¡Uuups! Algo ha salido mal... Intenta realizar esta operación más tarde."
         ).exists
         or d(
             text="¡Vaya! En este momento las Operaciones de Menudeo no se encuentran disponibles."
         ).exists
-    ) and bot_status:
-        d(text="Aceptar").click()
-        d(text="Comprar divisas").click()
-        time.sleep(2)
+    ):
+        # Clic en 'Aceptar' si aparece
+        if d(text="Aceptar").click_exists(timeout=1):
+            pass
+
+        # Intentar de nuevo "Comprar divisas"
+        d(text="Comprar divisas").click_exists(timeout=1)
+        time.sleep(2)  # Espera de respuesta del servidor
 
 
-# Colocar el monto a comprar
-def set_price(amount=None):
+def set_price(d, bot_status, amount=None):
+    """
+    Coloca el monto a comprar. Si `amount` es None o '', se asume 20.
+    Realiza selección de motivo y presiona Comprar.
+    """
+    if not bot_status:
+        return
+
     if amount is None or amount == "":
         amount = 20
-    if d(text="Ingresa los datos").exists and bot_status:
-        if d(text="0,00"):
-            d(text="0,00").set_text(amount)
+
+    # Verificamos que estemos en la pantalla donde se ingresan los datos
+    if d(text="Ingresa los datos").exists:
+        # A veces el campo puede estar representado por un text="0,00" o
+        # un input distinto según la versión de la app.
+        amount_input = d(text="0,00")
+
+        # Caso 1: si no está el input con text="0,00" y tampoco está el botón 'Comprar'
+        if (not amount_input.exists) and (not d(text="Comprar").exists):
+            # Podrías usar un selector distinto, p.e. un sibling:
+            # d(text="Comprar USD").sibling(index=6).set_text(amount)
+            # Pero dependerá de cómo se vea tu layout real:
+            d(text="Comprar USD").sibling(index=6).set_text(str(amount))
+
+        # Caso 2: si existe un input con text="0,00"
+        elif amount_input.exists:
+            amount_input.set_text(str(amount))
+            # Espera breve por la animación del teclado
             time.sleep(1)
             d.press("back")
             time.sleep(1)
 
-        d.swipe(540, 1800, 540, 500)
+        # Buscar la opción "Producto de venta de inmueble", si no está visible, hacer scroll
+        select_origin = d(text="Producto de venta de inmueble")
+        if not select_origin.exists:
+            # Intentamos un scroll vertical
+            d(scrollable=True).scroll.to(text="Producto de venta de inmueble")
 
-        if d(text="Producto de venta de inmueble").exists and bot_status:
-            d(text="Producto de venta de inmueble").click()
-            d(text="Sueldos y salarios").click()
-            d(text="Comprar").click()
+        # Selecciona el origen si aparece en pantalla
+        if select_origin.exists:
+            select_origin.click()
+            d(text="Sueldos y salarios").click_exists(timeout=1)
 
-
-# Aceptar juramentacion
-def accept_declaration():
-    # Localizar el texto "Acepto la Declaración Jurada"
-    declaration = d(text="Acepto la Declaración Jurada")
-    if declaration.exists and bot_status:
-        # Obtener el nodo hermano (hermano siguiente)
-        switch = declaration.sibling(className="android.view.ViewGroup", clickable=True)
-        if switch.exists and bot_status:
-
-            # Cambiar el estado del Switch
-            switch.click()
-            d(text="Continuar").click()
+        # Finalmente, clic en "Comprar"
+        if d(text="Comprar").click_exists(timeout=1):
             time.sleep(1)
 
 
-def buy_review():
-    global failed_tries, success_tries
-    global failed_tries_label, success_tries_label
-    if d(text="Verifica tu operación").exists and bot_status:
-        d(text="Aceptar").click()
-        time.sleep(3)
-    if d(text="¡Uuups! Algo ha salido mal...").exists and bot_status:
-        failed_tries = failed_tries + 1
-        failed_tries_label.config(text=f"Intentos Fallidos: {failed_tries}")
-        d(text="Resumen").click()
-        time.sleep(1)
-    elif d.xpath("//*[contains(@text, '¡Listo!')]").exists and bot_status:
-        success_tries = success_tries + 1
-        success_tries_label.config(text=f"Intentos Exitosos: {success_tries}")
-        d(text="Resumen").click()
-        time.sleep(1)
+def accept_declaration(d, bot_status):
+    """
+    Activa el switch "Acepto la Declaración Jurada" y presiona 'Continuar'.
+    """
+    if not bot_status:
+        return
+
+    declaration = d(text="Acepto la Declaración Jurada")
+    if declaration.exists:
+        switch = declaration.sibling(className="android.view.ViewGroup", clickable=True)
+        if switch.click_exists(timeout=1):
+            d(text="Continuar").click_exists(timeout=1)
+            time.sleep(1)  # animación
 
 
-# Funciones para manejo de la interfaz
+def buy_review(d, bot_status, counters):
+    """
+    Verifica el resultado de la operación de compra:
+    - Si es 'Uuups', incrementa los fallidos.
+    - Si es '¡Listo!', incrementa los exitosos.
+    - Luego clic en 'Resumen'.
+    """
+    if not bot_status:
+        return
+
+    # "Verifica tu operación"
+    if d(text="Verifica tu operación").exists:
+        d(text="Aceptar").click_exists(timeout=1)
+        time.sleep(3)  # respuesta del servidor
+
+    # Error
+    if d(text="¡Uuups! Algo ha salido mal...").exists:
+        counters["failed"] += 1
+        d(text="Resumen").click_exists(timeout=1)
+        time.sleep(1)  # respuesta del servidor
+
+    # Éxito
+    elif d.xpath("//*[contains(@text, '¡Listo!')]").exists:
+        counters["success"] += 1
+        d(text="Resumen").click_exists(timeout=1)
+        time.sleep(1)  # respuesta del servidor
 
 
-# Funciones para los botones
+# -------------------------
+#     INTERFAZ GRÁFICA
+# -------------------------
+
+
 def on_play():
+    """
+    Crea y lanza un thread para `start_bot`.
+    """
+    global play_thread
     try:
-        # Crear y ejecutar un hilo para la tarea
-        global play_thread
         play_thread = threading.Thread(target=lambda: start_bot())
         play_thread.start()
     except:
-        update_buttons()  # Actualizar los botones
+        update_buttons()
         messagebox.showinfo("Stop", "Error: se ha detenido la acción.")
 
 
 def start_bot():
-    global bot_status, price_entry
+    """
+    Bucle principal del bot, que se repite mientras `bot_status` sea True.
+    Se encarga de:
+      - Verificar si la app está abierta, y si no, abrirla.
+      - Realizar login (si se puede).
+      - Tap en el menú (si la pantalla actual no muestra opciones esperadas).
+      - Navegar a Menudeo y hacer compra de divisas.
+      - Aceptar declaración jurada.
+      - Revisar estado de la compra (fallido/éxito).
+    """
+    global bot_status, price_entry, device, d
+    global failed_tries, success_tries
+    global failed_tries_label, success_tries_label
+
+    d = u2.connect_usb(device.get())
     bot_status = True
-    update_buttons()  # Actualizar los botones
+    update_buttons()
+
+    # Contadores para mostrar en la interfaz
+    counters = {"failed": failed_tries, "success": success_tries}
 
     while bot_status:
-        if not is_app_open():
+        # 1. Verificar que la app esté abierta
+        if not is_app_open(d):
             d.app_start(APP_PACKAGE)
-        login()
-        if d(text="Resumen financiero").exists and bot_status:
-            tap_menu_button()
-        enter_menudeo()
-        set_price(price_entry.get())
-        accept_declaration()
-        buy_review()
+
+        # 2. Login (si es posible)
+        login(d, password_entry.get(), bot_status)
+
+        # 3. Si no está la pantalla de "Pagos de servicios" pero sí "Resumen financiero",
+        #    entonces desplegamos el menú
+        if (
+            not d(text="Pagos de servicios").exists
+            and d(text="Resumen financiero").exists
+            and bot_status
+        ):
+            tap_menu_button(d)
+
+        # 4. Entrar a Menudeo
+        enter_menudeo(d, bot_status)
+
+        # 5. Colocar monto
+        set_price(d, bot_status, price_entry.get())
+
+        # 6. Aceptar declaración
+        accept_declaration(d, bot_status)
+
+        # 7. Verificar resultado de la compra
+        buy_review(d, bot_status, counters)
+
+        # Actualizar contadores en la interfaz
+        failed_tries = counters["failed"]
+        success_tries = counters["success"]
+        failed_tries_label.config(text=f"Intentos Fallidos: {failed_tries}")
+        success_tries_label.config(text=f"Intentos Exitosos: {success_tries}")
+
+        # 8. Manejo de diálogo de "Atención" (por si aparece)
         if d(text="Atención").exists:
-            d(text="Aceptar").click()
+            d(text="Aceptar").click_exists(timeout=2)
 
 
 def on_stop():
+    """
+    Detiene el bot.
+    """
     global bot_status
     bot_status = False
-    update_buttons()  # Actualizar los botones
+    update_buttons()
 
 
-# Función para actualizar el estado de los botones
 def update_buttons():
+    """
+    Habilita/Deshabilita botones según el estado `bot_status`.
+    """
     if bot_status:
-        play_button.config(state="disabled")  # Deshabilitar Play si bot_status es True
-        stop_button.config(state="normal")  # Habilitar Stop
+        play_button.config(state="disabled")
+        stop_button.config(state="normal")
     else:
-        play_button.config(state="normal")  # Habilitar Play si bot_status es False
-        stop_button.config(state="disabled")  # Deshabilitar Stop
+        play_button.config(state="normal")
+        stop_button.config(state="disabled")
 
 
 def validate_input(action, value_if_allowed):
-
-    if action == "1":  # Solo validar cuando se añade texto
+    """
+    Valida que el usuario solo introduzca dígitos o vacío en el campo de monto.
+    """
+    if action == "1":  # Cuando se añade texto
         if value_if_allowed.isdigit() or value_if_allowed == "":
             return True
         else:
@@ -194,69 +309,187 @@ def validate_input(action, value_if_allowed):
     return True
 
 
-# Función principal
+def toggle_password(entry, button):
+    """
+    Muestra/oculta la contraseña en el Entry correspondiente.
+    """
+    if entry.cget("show") == "*":
+        entry.config(show="")
+        button.config(text="Hide")
+    else:
+        entry.config(show="*")
+        button.config(text="Show")
+
+
+def update_device_list():
+    """
+    Actualiza la lista de dispositivos conectados vía ADB.
+    """
+    global listDevices
+
+    new_devices = adbutils.adb.device_list()
+    if len(new_devices) != len(listDevices) or any(
+        nd.serial != od.serial for nd, od in zip(new_devices, listDevices)
+    ):
+        listDevices = new_devices
+        menu["menu"].delete(0, "end")
+
+        if listDevices:
+            menu.config(state="active")
+            for dev in listDevices:
+                serial = dev.serial
+                menu["menu"].add_command(
+                    label=serial, command=lambda s=serial: device.set(s)
+                )
+            device.set(listDevices[0].serial)
+        else:
+            device.set("No hay dispositivos")
+
+    root.after(1000, update_device_list)
+
+
+# -------------------------
+#       MAIN / UI
+# -------------------------
+
+
 def main():
-    global play_button, stop_button, bot_status, d, play_thread, failed_tries, success_tries
-    global price_entry, password_entry, failed_tries_label, success_tries_label
+    global play_button, stop_button, bot_status, d, play_thread
+    global failed_tries, success_tries, failed_tries_label, success_tries_label
+    global price_entry, password_entry, menu
+    global device, listDevices, root
 
-    d = u2.connect()
-    # Conexión al dispositivo (automática)
     bot_status = False
+    failed_tries = 0
+    success_tries = 0
+    listDevices = []
 
-    # Crear la ventana principal
+    # Crear ventana principal
     root = tk.Tk()
     root.title("Bot Mercantil")
+    root.geometry("350x400")
+    root.resizable(True, True)
 
-    # Crear validación
-    vcmd = (
-        root.register(validate_input),
-        "%d",
-        "%P",
-    )  # %d: acción, %P: valor propuesto
+    root.columnconfigure(0, weight=1)
+    for i in range(10):
+        root.rowconfigure(i, weight=1)
 
-    password_label = tk.Label(root, text="Contraseña:")
-    password_label.pack(pady=5)
-    password_entry = tk.Entry(root, width=30, validate="key")
-    password_entry.pack(pady=5)
+    # Variables
+    device = tk.StringVar(root)
+    device.set("")
 
-    price_label = tk.Label(root, text="Monto a Comprar:")
-    price_label.pack(pady=5)
-    price_label = tk.Label(root, text="(Por defecto: $20)")
-    price_label.pack(pady=5)
-    price_entry = tk.Entry(root, width=30, validate="key", validatecommand=vcmd)
-    price_entry.pack(pady=5)
+    # Frame selección de dispositivo
+    device_frame = tk.Frame(root)
+    device_frame.grid(row=0, column=0, pady=10, padx=10, sticky="ew")
 
-    failed_tries = 0
-    failed_tries_label = tk.Label(root, text=f"Intentos Fallidos: {failed_tries}")
-    failed_tries_label.pack(pady=5)
+    menu_label = tk.Label(device_frame, text="Dispositivo:", font=("Arial", 10, "bold"))
+    menu_label.pack(side="top", anchor="w")
 
-    success_tries = 0
-    success_tries_label = tk.Label(root, text=f"Intentos Exitosos: {success_tries}")
-    success_tries_label.pack(pady=5)
+    menu = tk.OptionMenu(device_frame, device, "No hay dispositivos")
+    menu.config(state="disabled")
+    menu.pack(fill="x")
 
-    # Botones para activar y detener
+    # Frame de contraseña
+    password_frame = tk.Frame(root)
+    password_frame.grid(row=1, column=0, pady=5, padx=10, sticky="ew")
+
+    password_label = tk.Label(
+        password_frame, text="Contraseña (Opcional):", font=("Arial", 10, "bold")
+    )
+    password_label.pack(anchor="w")
+
+    password_entry_frame = tk.Frame(password_frame)
+    password_entry_frame.pack(fill="x")
+
+    password_entry = tk.Entry(password_entry_frame, width=25, show="*")
+    password_entry.pack(side="left", fill="x", expand=True)
+
+    toggle_button = tk.Button(
+        password_entry_frame,
+        text="Show",
+        command=lambda: toggle_password(password_entry, toggle_button),
+        width=3,
+    )
+    toggle_button.pack(side="right")
+
+    password_info = tk.Label(
+        password_frame,
+        text="Sin contraseña funciona igual, pero si se termina la sesión hay que volver a ingresar manualmente.",
+        font=("Arial", 8),
+        fg="gray",
+        wraplength=320,
+        justify="left",
+    )
+    password_info.pack(anchor="w")
+
+    # Frame de monto de compra
+    price_frame = tk.Frame(root)
+    price_frame.grid(row=2, column=0, pady=5, padx=10, sticky="ew")
+
+    vcmd = (root.register(validate_input), "%d", "%P")
+    price_label = tk.Label(
+        price_frame, text="Monto a Comprar:", font=("Arial", 10, "bold")
+    )
+    price_label.pack(anchor="w")
+
+    price_entry = tk.Entry(price_frame, width=30, validate="key", validatecommand=vcmd)
+    price_entry.pack(fill="x")
+    price_entry.insert(0, "20")
+
+    price_info = tk.Label(
+        price_frame,
+        text="Si este campo esta vacío, el monto por defecto será de $20.",
+        font=("Arial", 8),
+        fg="gray",
+        wraplength=320,
+        justify="left",
+    )
+    price_info.pack(anchor="w")
+
+    # Estadísticas de intentos
+    stats_frame = tk.Frame(root)
+    stats_frame.grid(row=3, column=0, pady=10, padx=10, sticky="ew")
+
+    failed_tries_label = tk.Label(
+        stats_frame, text=f"❌ Intentos Fallidos: {failed_tries}", fg="red"
+    )
+    failed_tries_label.pack(anchor="w")
+
+    success_tries_label = tk.Label(
+        stats_frame, text=f"✅ Intentos Exitosos: {success_tries}", fg="green"
+    )
+    success_tries_label.pack(anchor="w")
+
+    # Frame de botones
+    buttons_frame = tk.Frame(root)
+    buttons_frame.grid(row=4, column=0, pady=20, padx=10, sticky="ew")
+
     play_button = tk.Button(
-        root,
-        text="Play",
+        buttons_frame,
+        text="Iniciar",
         command=on_play,
         bg="green",
         fg="white",
         width=10,
+        font=("Arial", 10, "bold"),
     )
-    play_button.pack(pady=10)
+    play_button.pack(side="left", expand=True, fill="x", padx=5)
 
     stop_button = tk.Button(
-        root, text="Stop", command=on_stop, bg="red", fg="white", width=10
+        buttons_frame,
+        text="Detener",
+        command=on_stop,
+        bg="red",
+        fg="white",
+        width=10,
+        font=("Arial", 10, "bold"),
     )
-    stop_button.pack(pady=10)
+    stop_button.pack(side="right", expand=True, fill="x", padx=5)
 
-    # Configurar el estado inicial de los botones
     update_buttons()
-
-    # Iniciar el bucle principal
+    root.after(1000, update_device_list)
     root.mainloop()
 
 
-# Verificar si el script se está ejecutando directamente
 if __name__ == "__main__":
     main()
