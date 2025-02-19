@@ -8,6 +8,7 @@ import threading
 import adbutils
 
 APP_PACKAGE = "com.mercantilbanco.mercantilmovil"
+#DEVICE_ID = "pfxg8tb6gqqkrgqs"
 
 # -------------------------
 #       LÓGICA DEL BOT
@@ -98,7 +99,7 @@ def enter_menudeo(d, bot_status):
         try:
             # Clic en 'Aceptar' si aparece
             if d(text="Aceptar").click_exists(timeout=1):
-                pass
+                time.sleep(0.3)
 
             # Intentar de nuevo "Comprar divisas"
             d(text="Comprar divisas").click_exists(timeout=1)
@@ -120,6 +121,10 @@ def set_price(d, bot_status, amount=None):
 
     # Verificamos que estemos en la pantalla donde se ingresan los datos
     if d(text="Ingresa los datos").exists:
+        
+        if d(text="Vender USD").exists(timeout=1):
+            d(text="Resumen").click_exists(timeout=1)
+            return
         # A veces el campo puede estar representado por un text="0,00" o
         # un input distinto según la versión de la app.
         amount_input = d(text="0,00")
@@ -146,9 +151,9 @@ def set_price(d, bot_status, amount=None):
                         d(text="Sueldos y salarios").click_exists(timeout=1)
 
                 except:
-                    d.press("back")
+                    pass
             except:
-                d.press("back")
+                pass
 
         # Caso 2: si existe un input con text="0,00"
         elif amount_input.exists:
@@ -168,16 +173,15 @@ def set_price(d, bot_status, amount=None):
                         d(text="Sueldos y salarios").click_exists(timeout=1)
 
                 except:
-                    d.press("back")
+                    pass
             except:
-                d.press("back")
+                pass
 
             # Buscar la opción "Producto de venta de inmueble", si no está visible, hacer scroll
 
         # Finalmente, clic en "Comprar"
         if d(text="Comprar").click_exists(timeout=1):
             time.sleep(1)
-
 
 def accept_declaration(d, bot_status):
     """
@@ -308,6 +312,10 @@ def start_bot():
         # 8. Manejo de error (por si aparece)
         if d(text="Error code 605").exists or d(text="Unexpected error").exists:
             d(text="OK").click_exists(timeout=1)
+            
+        # 9. Manejo de error (por si aparece)
+        if d(text="Inicia sesión nuevamente").exists:
+            d(text="Aceptar").click_exists(timeout=1)
 
 
 def on_stop():
