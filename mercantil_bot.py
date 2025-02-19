@@ -102,13 +102,12 @@ def enter_menudeo(d, bot_status):
 
             # Intentar de nuevo "Comprar divisas"
             d(text="Comprar divisas").click_exists(timeout=1)
+            time.sleep(1)
         except:
             pass
-    time.sleep(1)
 
 
 def set_price(d, bot_status, amount=None):
-    
     """
     Coloca el monto a comprar. Si `amount` es None o '', se asume 20.
     Realiza selección de motivo y presiona Comprar.
@@ -130,13 +129,26 @@ def set_price(d, bot_status, amount=None):
             # Podrías usar un selector distinto, p.e. un sibling:
             # d(text="Comprar USD").sibling(index=6).set_text(amount)
             # Pero dependerá de cómo se vea tu layout real:
-            try: 
+            try:
                 d(text="Comprar USD").sibling(index=6).send_keys(str(amount))
                 time.sleep(0.2)
                 d.press("back")
+
+                try:
+                    select_origin = d(text="Producto de venta de inmueble")
+                    if not select_origin.exists:
+                        # Intentamos un scroll vertical
+                        d(scrollable=True).scroll.to(
+                            text="Producto de venta de inmueble"
+                        )
+                    if select_origin.exists:
+                        select_origin.click()
+                        d(text="Sueldos y salarios").click_exists(timeout=1)
+
+                except:
+                    d.press("back")
             except:
                 d.press("back")
-                d(text="Resumen").click_exists(timeout=1)
 
         # Caso 2: si existe un input con text="0,00"
         elif amount_input.exists:
@@ -144,23 +156,23 @@ def set_price(d, bot_status, amount=None):
                 amount_input.send_keys(str(amount))
                 time.sleep(0.2)
                 d.press("back")
+                try:
+                    select_origin = d(text="Producto de venta de inmueble")
+                    if not select_origin.exists:
+                        # Intentamos un scroll vertical
+                        d(scrollable=True).scroll.to(
+                            text="Producto de venta de inmueble"
+                        )
+                    if select_origin.exists:
+                        select_origin.click()
+                        d(text="Sueldos y salarios").click_exists(timeout=1)
+
+                except:
+                    d.press("back")
             except:
                 d.press("back")
-                d(text="Resumen").click_exists(timeout=1)
 
             # Buscar la opción "Producto de venta de inmueble", si no está visible, hacer scroll
-
-        try:
-            select_origin = d(text="Producto de venta de inmueble")
-            if not select_origin.exists:
-                # Intentamos un scroll vertical
-                d(scrollable=True).scroll.to(text="Producto de venta de inmueble")
-            if select_origin.exists:
-                select_origin.click()
-                d(text="Sueldos y salarios").click_exists(timeout=1)
-
-        except:
-            d(text="Resumen").click_exists(timeout=1)
 
         # Finalmente, clic en "Comprar"
         if d(text="Comprar").click_exists(timeout=1):
@@ -292,7 +304,7 @@ def start_bot():
         # 8. Manejo de diálogo de "Atención" (por si aparece)
         if d(text="Atención").exists:
             d(text="Aceptar").click_exists(timeout=2)
-            
+
         # 8. Manejo de error (por si aparece)
         if d(text="Error code 605").exists or d(text="Unexpected error").exists:
             d(text="OK").click_exists(timeout=1)
