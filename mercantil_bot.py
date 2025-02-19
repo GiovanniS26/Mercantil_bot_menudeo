@@ -81,12 +81,10 @@ def enter_menudeo(d, bot_status):
     # Si existe el texto 'Operaciones de Menudeo', clic
     if d(text="Operaciones de Menudeo").click_exists(timeout=1):
         pass
-    
+
     # Ahora revisamos si hay "Comprar divisas"
     if d(text="Comprar divisas").click_exists(timeout=1):
-        # Esperamos la respuesta del servidor
-        time.sleep(2)
-
+        pass
     # Mientras aparezca el mensaje de error, volvemos a intentar
     while bot_status and (
         d(
@@ -95,17 +93,22 @@ def enter_menudeo(d, bot_status):
         or d(
             text="¡Vaya! En este momento las Operaciones de Menudeo no se encuentran disponibles."
         ).exists
+        or d(text="Comprar divisas").exists
     ):
-        # Clic en 'Aceptar' si aparece
-        if d(text="Aceptar").click_exists(timeout=1):
-            pass
+        try:
+            # Clic en 'Aceptar' si aparece
+            if d(text="Aceptar").click_exists(timeout=1):
+                pass
 
-        # Intentar de nuevo "Comprar divisas"
-        d(text="Comprar divisas").click_exists(timeout=1)
-        time.sleep(2)  # Espera de respuesta del servidor
+            # Intentar de nuevo "Comprar divisas"
+            d(text="Comprar divisas").click_exists(timeout=1)
+        except:
+            pass
+    time.sleep(1)
 
 
 def set_price(d, bot_status, amount=None):
+    
     """
     Coloca el monto a comprar. Si `amount` es None o '', se asume 20.
     Realiza selección de motivo y presiona Comprar.
@@ -127,26 +130,37 @@ def set_price(d, bot_status, amount=None):
             # Podrías usar un selector distinto, p.e. un sibling:
             # d(text="Comprar USD").sibling(index=6).set_text(amount)
             # Pero dependerá de cómo se vea tu layout real:
-            d(text="Comprar USD").sibling(index=6).set_text(str(amount))
+            try: 
+                d(text="Comprar USD").sibling(index=6).send_keys(str(amount))
+                time.sleep(0.2)
+                d.press("back")
+            except:
+                d.press("back")
+                d(text="Resumen").click_exists(timeout=1)
 
         # Caso 2: si existe un input con text="0,00"
         elif amount_input.exists:
-            amount_input.set_text(str(amount))
-            # Espera breve por la animación del teclado
-            time.sleep(1)
-            d.press("back")
-            time.sleep(1)
+            try:
+                amount_input.send_keys(str(amount))
+                time.sleep(0.2)
+                d.press("back")
+            except:
+                d.press("back")
+                d(text="Resumen").click_exists(timeout=1)
 
-        # Buscar la opción "Producto de venta de inmueble", si no está visible, hacer scroll
-        select_origin = d(text="Producto de venta de inmueble")
-        if not select_origin.exists:
-            # Intentamos un scroll vertical
-            d(scrollable=True).scroll.to(text="Producto de venta de inmueble")
+            # Buscar la opción "Producto de venta de inmueble", si no está visible, hacer scroll
 
-        # Selecciona el origen si aparece en pantalla
-        if select_origin.exists:
-            select_origin.click()
-            d(text="Sueldos y salarios").click_exists(timeout=1)
+        try:
+            select_origin = d(text="Producto de venta de inmueble")
+            if not select_origin.exists:
+                # Intentamos un scroll vertical
+                d(scrollable=True).scroll.to(text="Producto de venta de inmueble")
+            if select_origin.exists:
+                select_origin.click()
+                d(text="Sueldos y salarios").click_exists(timeout=1)
+
+        except:
+            d(text="Resumen").click_exists(timeout=1)
 
         # Finalmente, clic en "Comprar"
         if d(text="Comprar").click_exists(timeout=1):
@@ -181,19 +195,19 @@ def buy_review(d, bot_status, counters):
     # "Verifica tu operación"
     if d(text="Verifica tu operación").exists:
         d(text="Aceptar").click_exists(timeout=1)
-        time.sleep(3)  # respuesta del servidor
+        time.sleep(2)  # respuesta del servidor
 
     # Error
     if d(text="¡Uuups! Algo ha salido mal...").exists:
         counters["failed"] += 1
-        d(text="Resumen").click_exists(timeout=1)
-        time.sleep(1)  # respuesta del servidor
+        tap_menu_button(d)
+        time.sleep(0.5)
 
     # Éxito
     elif d.xpath("//*[contains(@text, '¡Listo!')]").exists:
         counters["success"] += 1
-        d(text="Resumen").click_exists(timeout=1)
-        time.sleep(1)  # respuesta del servidor
+        tap_menu_button(d)
+        time.sleep(0.5)
 
 
 # -------------------------
@@ -203,12 +217,16 @@ def buy_review(d, bot_status, counters):
 
 def on_play():
     """
-    Crea y lanza un thread para `start_bot`.
+    Crea y lanza un thread para `start_bot` si existe dispositivo conectado.
     """
     global play_thread
     try:
-        play_thread = threading.Thread(target=lambda: start_bot())
-        play_thread.start()
+        if device.get() != "Selecciona un dispositivo":
+            play_thread = threading.Thread(target=lambda: start_bot())
+            play_thread.start()
+        else:
+            messagebox.showinfo("Stop", "Error: debes seleccionar un dispositivo.")
+
     except:
         update_buttons()
         messagebox.showinfo("Stop", "Error: se ha detenido la acción.")
@@ -268,12 +286,16 @@ def start_bot():
         # Actualizar contadores en la interfaz
         failed_tries = counters["failed"]
         success_tries = counters["success"]
-        failed_tries_label.config(text=f"Intentos Fallidos: {failed_tries}")
-        success_tries_label.config(text=f"Intentos Exitosos: {success_tries}")
+        failed_tries_label.config(text=f"❌ Intentos Fallidos: {failed_tries}")
+        success_tries_label.config(text=f"✅ Intentos Exitosos: {success_tries}")
 
         # 8. Manejo de diálogo de "Atención" (por si aparece)
         if d(text="Atención").exists:
             d(text="Aceptar").click_exists(timeout=2)
+            
+        # 8. Manejo de error (por si aparece)
+        if d(text="Error code 605").exists or d(text="Unexpected error").exists:
+            d(text="OK").click_exists(timeout=1)
 
 
 def on_stop():
@@ -341,7 +363,7 @@ def update_device_list():
                 menu["menu"].add_command(
                     label=serial, command=lambda s=serial: device.set(s)
                 )
-            device.set(listDevices[0].serial)
+            # device.set(listDevices[0].serial)
         else:
             device.set("No hay dispositivos")
 
@@ -376,7 +398,7 @@ def main():
 
     # Variables
     device = tk.StringVar(root)
-    device.set("")
+    device.set("Selecciona un dispositivo")
 
     # Frame selección de dispositivo
     device_frame = tk.Frame(root)
