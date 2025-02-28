@@ -238,7 +238,7 @@ def on_play():
     global play_thread
     try:
         if device.get() != "Selecciona un dispositivo":
-            play_thread = threading.Thread(target=lambda: start_bot())
+            play_thread = threading.Thread(target=lambda: start_bot(), daemon=True)
             play_thread.start()
         else:
             messagebox.showinfo("Stop", "Error: debes seleccionar un dispositivo.")
@@ -264,6 +264,7 @@ def start_bot():
     global failed_tries_label, success_tries_label
 
     d = u2.connect_usb(device.get())
+    d.set_orientation("natural")  # o "portrait"
     bot_status = True
     update_buttons()
 
@@ -337,6 +338,11 @@ def update_buttons():
     else:
         play_button.config(state="normal")
         stop_button.config(state="disabled")
+        
+def on_close():
+    global bot_status
+    bot_status = False
+    root.destroy()  # Termina el bucle principal de Tkinter
 
 
 def validate_input(action, value_if_allowed):
@@ -408,6 +414,7 @@ def main():
 
     # Crear ventana principal
     root = tk.Tk()
+    root.protocol("WM_DELETE_WINDOW", on_close)  # Ejecuta on_close al cerrar la ventana
     root.title("Bot Mercantil")
     root.geometry("350x400")
     root.resizable(True, True)
