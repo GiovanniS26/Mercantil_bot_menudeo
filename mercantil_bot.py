@@ -69,6 +69,7 @@ def tap_menu_button(d):
     abs_y = int(rel_y * screen_height)
 
     d.click(abs_x, abs_y)
+    time.sleep(0.5)
 
 
 def enter_menudeo(d, bot_status):
@@ -86,6 +87,7 @@ def enter_menudeo(d, bot_status):
     # Ahora revisamos si hay "Comprar divisas"
     if d(text="Comprar divisas").click_exists(timeout=1):
         pass
+    time.sleep(2)
     # Mientras aparezca el mensaje de error, volvemos a intentar
     while bot_status and (
         d(
@@ -103,7 +105,7 @@ def enter_menudeo(d, bot_status):
 
             # Intentar de nuevo "Comprar divisas"
             d(text="Comprar divisas").click_exists(timeout=1)
-            time.sleep(1)
+            time.sleep(2)
         except:
             pass
 
@@ -211,19 +213,17 @@ def buy_review(d, bot_status, counters):
     # "Verifica tu operación"
     if d(text="Verifica tu operación").exists:
         d(text="Aceptar").click_exists(timeout=1)
-        time.sleep(2)  # respuesta del servidor
+        time.sleep(3)  # respuesta del servidor
 
     # Error
     if d(text="¡Uuups! Algo ha salido mal...").exists:
         counters["failed"] += 1
         tap_menu_button(d)
-        time.sleep(0.5)
 
     # Éxito
     elif d.xpath("//*[contains(@text, '¡Listo!')]").exists:
         counters["success"] += 1
         tap_menu_button(d)
-        time.sleep(0.5)
 
 
 # -------------------------
