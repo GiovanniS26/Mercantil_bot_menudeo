@@ -8,7 +8,7 @@ import threading
 import adbutils
 
 APP_PACKAGE = "com.mercantilbanco.mercantilmovil"
-#DEVICE_ID = "pfxg8tb6gqqkrgqs"
+# DEVICE_ID = "pfxg8tb6gqqkrgqs"
 
 # -------------------------
 #       LÓGICA DEL BOT
@@ -36,11 +36,15 @@ def login(d, password, bot_status):
         return
 
     # Usamos click_exists con timeout para esperar a que aparezca el botón 'Ingresar'
-    if d(text="Ingresar").exists:
+    if d(text="Ingresar").exists and bot_status:
         # Buscamos el campo de contraseña (android.widget.EditText)
         password_input = d(className="android.widget.EditText")
-        if password_input.wait(timeout=2):  # Espera a que aparezca el EditText
-            if password:  # Si el usuario ingresó una contraseña en la interfaz
+        if (
+            password_input.wait(timeout=2) and bot_status
+        ):  # Espera a que aparezca el EditText
+            if (
+                password and bot_status
+            ):  # Si el usuario ingresó una contraseña en la interfaz
                 password_input.send_keys(password)
             # Hacemos click en 'Ingresar' (por si no lo detectó click_exists anterior)
             d(text="Ingresar").click_exists(timeout=1)
@@ -81,11 +85,11 @@ def enter_menudeo(d, bot_status):
         return
 
     # Si existe el texto 'Operaciones de Menudeo', clic
-    if d(text="Operaciones de Menudeo").click_exists(timeout=1):
+    if d(text="Operaciones de Menudeo").click_exists(timeout=1) and bot_status:
         pass
 
     # Ahora revisamos si hay "Comprar divisas"
-    if d(text="Comprar divisas").click_exists(timeout=1):
+    if d(text="Comprar divisas").click_exists(timeout=1) and bot_status:
         pass
     time.sleep(2)
     # Mientras aparezca el mensaje de error, volvemos a intentar
@@ -96,11 +100,10 @@ def enter_menudeo(d, bot_status):
         or d(
             text="¡Vaya! En este momento las Operaciones de Menudeo no se encuentran disponibles."
         ).exists
-        or d(text="Comprar divisas").exists
     ):
         try:
             # Clic en 'Aceptar' si aparece
-            if d(text="Aceptar").click_exists(timeout=1):
+            if d(text="Aceptar").click_exists(timeout=1) and bot_status:
                 time.sleep(0.3)
 
             # Intentar de nuevo "Comprar divisas"
@@ -122,9 +125,9 @@ def set_price(d, bot_status, amount=None):
         amount = 20
 
     # Verificamos que estemos en la pantalla donde se ingresan los datos
-    if d(text="Ingresa los datos").exists:
-        
-        if d(text="Vender USD").exists(timeout=1):
+    if d(text="Ingresa los datos").exists and bot_status:
+
+        if d(text="Vender USD").exists(timeout=1) and bot_status:
             d(text="Resumen").click_exists(timeout=1)
             return
         # A veces el campo puede estar representado por un text="0,00" o
@@ -132,7 +135,7 @@ def set_price(d, bot_status, amount=None):
         amount_input = d(text="0,00")
 
         # Caso 1: si no está el input con text="0,00" y tampoco está el botón 'Comprar'
-        if (not amount_input.exists) and (not d(text="Comprar").exists):
+        if (not amount_input.exists) and (not d(text="Comprar").exists) and bot_status:
             # Podrías usar un selector distinto, p.e. un sibling:
             # d(text="Comprar USD").sibling(index=6).set_text(amount)
             # Pero dependerá de cómo se vea tu layout real:
@@ -143,12 +146,12 @@ def set_price(d, bot_status, amount=None):
 
                 try:
                     select_origin = d(text="Producto de venta de inmueble")
-                    if not select_origin.exists:
+                    if not select_origin.exists and bot_status:
                         # Intentamos un scroll vertical
                         d(scrollable=True).scroll.to(
                             text="Producto de venta de inmueble"
                         )
-                    if select_origin.exists:
+                    if select_origin.exists and bot_status:
                         select_origin.click()
                         d(text="Sueldos y salarios").click_exists(timeout=1)
 
@@ -165,12 +168,12 @@ def set_price(d, bot_status, amount=None):
                 d.press("back")
                 try:
                     select_origin = d(text="Producto de venta de inmueble")
-                    if not select_origin.exists:
+                    if not select_origin.exists and bot_status:
                         # Intentamos un scroll vertical
                         d(scrollable=True).scroll.to(
                             text="Producto de venta de inmueble"
                         )
-                    if select_origin.exists:
+                    if select_origin.exists and bot_status:
                         select_origin.click()
                         d(text="Sueldos y salarios").click_exists(timeout=1)
 
@@ -182,8 +185,9 @@ def set_price(d, bot_status, amount=None):
             # Buscar la opción "Producto de venta de inmueble", si no está visible, hacer scroll
 
         # Finalmente, clic en "Comprar"
-        if d(text="Comprar").click_exists(timeout=1):
+        if d(text="Comprar").click_exists(timeout=1) and bot_status:
             time.sleep(1)
+
 
 def accept_declaration(d, bot_status):
     """
@@ -193,9 +197,9 @@ def accept_declaration(d, bot_status):
         return
 
     declaration = d(text="Acepto la Declaración Jurada")
-    if declaration.exists:
+    if declaration.exists and bot_status:
         switch = declaration.sibling(className="android.view.ViewGroup", clickable=True)
-        if switch.click_exists(timeout=1):
+        if switch.click_exists(timeout=1) and bot_status:
             d(text="Continuar").click_exists(timeout=1)
             time.sleep(1)  # animación
 
@@ -211,17 +215,17 @@ def buy_review(d, bot_status, counters):
         return
 
     # "Verifica tu operación"
-    if d(text="Verifica tu operación").exists:
+    if d(text="Verifica tu operación").exists and bot_status:
         d(text="Aceptar").click_exists(timeout=1)
         time.sleep(3)  # respuesta del servidor
 
     # Error
-    if d(text="¡Uuups! Algo ha salido mal...").exists:
+    if d(text="¡Uuups! Algo ha salido mal...").exists and bot_status:
         counters["failed"] += 1
         tap_menu_button(d)
 
     # Éxito
-    elif d.xpath("//*[contains(@text, '¡Listo!')]").exists:
+    elif d.xpath("//*[contains(@text, '¡Listo!')]").exists and bot_status:
         counters["success"] += 1
         tap_menu_button(d)
 
@@ -273,7 +277,7 @@ def start_bot():
 
     while bot_status:
         # 1. Verificar que la app esté abierta
-        if not is_app_open(d):
+        if not is_app_open(d) and bot_status:
             d.app_start(APP_PACKAGE)
 
         # 2. Login (si es posible)
@@ -307,15 +311,19 @@ def start_bot():
         success_tries_label.config(text=f"✅ Intentos Exitosos: {success_tries}")
 
         # 8. Manejo de diálogo de "Atención" (por si aparece)
-        if d(text="Atención").exists:
+        if d(text="Atención").exists and bot_status:
             d(text="Aceptar").click_exists(timeout=2)
 
         # 8. Manejo de error (por si aparece)
-        if d(text="Error code 605").exists or d(text="Unexpected error").exists:
+        if (
+            d(text="Error code 605").exists
+            or d(text="Unexpected error").exists
+            and bot_status
+        ):
             d(text="OK").click_exists(timeout=1)
-            
+
         # 9. Manejo de error (por si aparece)
-        if d(text="Inicia sesión nuevamente").exists:
+        if d(text="Inicia sesión nuevamente").exists and bot_status:
             d(text="Aceptar").click_exists(timeout=1)
 
 
@@ -338,7 +346,8 @@ def update_buttons():
     else:
         play_button.config(state="normal")
         stop_button.config(state="disabled")
-        
+
+
 def on_close():
     global bot_status
     bot_status = False
