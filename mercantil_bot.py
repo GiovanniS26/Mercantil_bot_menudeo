@@ -8,6 +8,8 @@ import threading
 import adbutils
 
 APP_PACKAGE = "com.mercantilbanco.mercantilmovil"
+
+# Al compilar para un dispositivo agregar el deviceID
 # DEVICE_ID = "pfxg8tb6gqqkrgqs"
 
 # -------------------------
@@ -32,7 +34,7 @@ def login(d, password):
     Inicia sesión si es que el botón 'Ingresar' está disponible.
     Se encarga de enviar la contraseña si el usuario la especificó.
     """
-    
+
     if not bot_status:
         return
 
@@ -82,19 +84,21 @@ def enter_menudeo(d):
     Navega hasta "Operaciones de Menudeo" y luego "Comprar divisas".
     Maneja la validación de "Uuups! Algo ha salido mal..."
     """
-    
+
     if not bot_status:
         return
 
     # Si existe el texto 'Operaciones de Menudeo', clic
-    if d(text="Operaciones de Menudeo").exists(timeout=5) and bot_status:  # Espera hasta 5 segundos
+    if (
+        d(text="Operaciones de Menudeo").exists(timeout=5) and bot_status
+    ):  # Espera hasta 5 segundos
         d(text="Operaciones de Menudeo").click()
 
     # Ahora revisamos si hay "Comprar divisas"
     if d(text="Comprar divisas").click_exists(timeout=1) and bot_status:
         time.sleep(2)
         pass
-    
+
     # Mientras aparezca el mensaje de error, volvemos a intentar
     while bot_status and (
         d(
@@ -117,12 +121,11 @@ def enter_menudeo(d):
 
 
 def set_price(d, amount=None):
-    
     """
     Coloca el monto a comprar. Si `amount` es None o '', se asume 20.
     Realiza selección de motivo y presiona Comprar.
     """
-    
+
     if not bot_status:
         return
 
@@ -198,7 +201,7 @@ def accept_declaration(d):
     """
     Activa el switch "Acepto la Declaración Jurada" y presiona 'Continuar'.
     """
-    
+
     if not bot_status:
         return
 
@@ -217,7 +220,7 @@ def buy_review(d, counters):
     - Si es '¡Listo!', incrementa los exitosos.
     - Luego clic en 'Resumen'.
     """
-    
+
     if not bot_status:
         return
 
@@ -332,17 +335,26 @@ def start_bot():
         # 9. Manejo de error (por si aparece)
         if d(text="Inicia sesión nuevamente").exists and bot_status:
             d(text="Aceptar").click_exists(timeout=1)
-        
-        if not d(resourceId="com.mercantilbanco.mercantilmovil:id/SCROLL_LAYOUT").exists and bot_status:
+
+        if (
+            not d(
+                resourceId="com.mercantilbanco.mercantilmovil:id/SCROLL_LAYOUT"
+            ).exists
+            and bot_status
+        ):
             time.sleep(10)
-            if not d(resourceId="com.mercantilbanco.mercantilmovil:id/SCROLL_LAYOUT").exists and bot_status:
+            if (
+                not d(
+                    resourceId="com.mercantilbanco.mercantilmovil:id/SCROLL_LAYOUT"
+                ).exists
+                and bot_status
+            ):
                 d.app_stop(APP_PACKAGE)
                 time.sleep(2)
                 d.app_start(APP_PACKAGE)
 
 
 def on_stop():
-    
     """
     Detiene el bot.
     """
@@ -355,7 +367,7 @@ def update_buttons():
     """
     Habilita/Deshabilita botones según el estado `bot_status`.
     """
-    
+
     if bot_status:
         play_button.config(state="disabled")
         stop_button.config(state="normal")
@@ -399,7 +411,7 @@ def update_device_list():
     Actualiza la lista de dispositivos conectados vía ADB.
     """
     global listDevices
-
+    print(adbutils.adb.device_list(), flush=True)
     new_devices = adbutils.adb.device_list()
     if len(new_devices) != len(listDevices) or any(
         nd.serial != od.serial for nd, od in zip(new_devices, listDevices)
@@ -418,6 +430,7 @@ def update_device_list():
         else:
             device.set("No hay dispositivos")
 
+    # Comentar esta linea para compilar para un dispositivo
     root.after(1000, update_device_list)
 
 
@@ -450,7 +463,12 @@ def main():
 
     # Variables
     device = tk.StringVar(root)
+
+    # Comentar esta linea para compilar para un dispositivo
     device.set("Selecciona un dispositivo")
+
+    # Descomentar esta linea para compilar para un dispositivo
+    # device.set(DEVICE_ID)
 
     # Frame selección de dispositivo
     device_frame = tk.Frame(root)
@@ -561,6 +579,8 @@ def main():
     stop_button.pack(side="right", expand=True, fill="x", padx=5)
 
     update_buttons()
+
+    # Comentar esta linea para compilar para un dispositivo
     root.after(1000, update_device_list)
     root.mainloop()
 
