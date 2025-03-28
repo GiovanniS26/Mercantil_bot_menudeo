@@ -1,6 +1,10 @@
 *build
 *.spec
 *.xml
+*.pyd
+*.c
+_main.py
+dist
 
 # Prerequisites
 *.d
