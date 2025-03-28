@@ -27,11 +27,12 @@ def is_app_open(d):
         return False
 
 
-def login(d, password, bot_status):
+def login(d, password):
     """
     Inicia sesión si es que el botón 'Ingresar' está disponible.
     Se encarga de enviar la contraseña si el usuario la especificó.
     """
+    
     if not bot_status:
         return
 
@@ -76,22 +77,24 @@ def tap_menu_button(d):
     time.sleep(0.5)
 
 
-def enter_menudeo(d, bot_status):
+def enter_menudeo(d):
     """
     Navega hasta "Operaciones de Menudeo" y luego "Comprar divisas".
     Maneja la validación de "Uuups! Algo ha salido mal..."
     """
+    
     if not bot_status:
         return
 
     # Si existe el texto 'Operaciones de Menudeo', clic
-    if d(text="Operaciones de Menudeo").click_exists(timeout=1) and bot_status:
-        pass
+    if d(text="Operaciones de Menudeo").exists(timeout=5) and bot_status:  # Espera hasta 5 segundos
+        d(text="Operaciones de Menudeo").click()
 
     # Ahora revisamos si hay "Comprar divisas"
     if d(text="Comprar divisas").click_exists(timeout=1) and bot_status:
+        time.sleep(2)
         pass
-    time.sleep(2)
+    
     # Mientras aparezca el mensaje de error, volvemos a intentar
     while bot_status and (
         d(
@@ -113,11 +116,13 @@ def enter_menudeo(d, bot_status):
             pass
 
 
-def set_price(d, bot_status, amount=None):
+def set_price(d, amount=None):
+    
     """
     Coloca el monto a comprar. Si `amount` es None o '', se asume 20.
     Realiza selección de motivo y presiona Comprar.
     """
+    
     if not bot_status:
         return
 
@@ -189,10 +194,11 @@ def set_price(d, bot_status, amount=None):
             time.sleep(1)
 
 
-def accept_declaration(d, bot_status):
+def accept_declaration(d):
     """
     Activa el switch "Acepto la Declaración Jurada" y presiona 'Continuar'.
     """
+    
     if not bot_status:
         return
 
@@ -204,13 +210,14 @@ def accept_declaration(d, bot_status):
             time.sleep(1)  # animación
 
 
-def buy_review(d, bot_status, counters):
+def buy_review(d, counters):
     """
     Verifica el resultado de la operación de compra:
     - Si es 'Uuups', incrementa los fallidos.
     - Si es '¡Listo!', incrementa los exitosos.
     - Luego clic en 'Resumen'.
     """
+    
     if not bot_status:
         return
 
@@ -281,7 +288,7 @@ def start_bot():
             d.app_start(APP_PACKAGE)
 
         # 2. Login (si es posible)
-        login(d, password_entry.get(), bot_status)
+        login(d, password_entry.get())
 
         # 3. Si no está la pantalla de "Pagos de servicios" pero sí "Resumen financiero",
         #    entonces desplegamos el menú
@@ -293,16 +300,16 @@ def start_bot():
             tap_menu_button(d)
 
         # 4. Entrar a Menudeo
-        enter_menudeo(d, bot_status)
+        enter_menudeo(d)
 
         # 5. Colocar monto
-        set_price(d, bot_status, price_entry.get())
+        set_price(d, price_entry.get())
 
         # 6. Aceptar declaración
-        accept_declaration(d, bot_status)
+        accept_declaration(d)
 
         # 7. Verificar resultado de la compra
-        buy_review(d, bot_status, counters)
+        buy_review(d, counters)
 
         # Actualizar contadores en la interfaz
         failed_tries = counters["failed"]
@@ -325,9 +332,17 @@ def start_bot():
         # 9. Manejo de error (por si aparece)
         if d(text="Inicia sesión nuevamente").exists and bot_status:
             d(text="Aceptar").click_exists(timeout=1)
+        
+        if not d(resourceId="com.mercantilbanco.mercantilmovil:id/SCROLL_LAYOUT").exists and bot_status:
+            time.sleep(10)
+            if not d(resourceId="com.mercantilbanco.mercantilmovil:id/SCROLL_LAYOUT").exists and bot_status:
+                d.app_stop(APP_PACKAGE)
+                time.sleep(2)
+                d.app_start(APP_PACKAGE)
 
 
 def on_stop():
+    
     """
     Detiene el bot.
     """
@@ -340,6 +355,7 @@ def update_buttons():
     """
     Habilita/Deshabilita botones según el estado `bot_status`.
     """
+    
     if bot_status:
         play_button.config(state="disabled")
         stop_button.config(state="normal")
