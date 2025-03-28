@@ -172,7 +172,7 @@ def set_price(d, amount=None):
         elif amount_input.exists:
             try:
                 amount_input.send_keys(str(amount))
-                time.sleep(0.2)
+                time.sleep(0.6)
                 d.press("back")
                 try:
                     select_origin = d(text="Producto de venta de inmueble")
@@ -411,7 +411,7 @@ def update_device_list():
     Actualiza la lista de dispositivos conectados vía ADB.
     """
     global listDevices
-    print(adbutils.adb.device_list(), flush=True)
+    
     new_devices = adbutils.adb.device_list()
     if len(new_devices) != len(listDevices) or any(
         nd.serial != od.serial for nd, od in zip(new_devices, listDevices)
