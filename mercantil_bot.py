@@ -6,7 +6,6 @@ from tkinter import messagebox
 import threading
 import adbutils
 
-print(os.path.join(os.path.dirname(u2.__file__), "assets", "u2.jar"))
 APP_PACKAGE = "com.mercantilbanco.mercantilmovil"
 
 # Al compilar para un dispositivo agregar el deviceID
