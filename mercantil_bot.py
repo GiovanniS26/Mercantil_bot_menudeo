@@ -1,12 +1,12 @@
 import os
 import time
-import xml.etree.ElementTree as ET
 import uiautomator2 as u2
 import tkinter as tk
 from tkinter import messagebox
 import threading
 import adbutils
 
+print(os.path.join(os.path.dirname(u2.__file__), "assets", "u2.jar"))
 APP_PACKAGE = "com.mercantilbanco.mercantilmovil"
 
 # Al compilar para un dispositivo agregar el deviceID
@@ -340,6 +340,7 @@ def start_bot():
             not d(
                 resourceId="com.mercantilbanco.mercantilmovil:id/SCROLL_LAYOUT"
             ).exists
+            and is_app_open(d)
             and bot_status
         ):
             time.sleep(10)
@@ -347,6 +348,7 @@ def start_bot():
                 not d(
                     resourceId="com.mercantilbanco.mercantilmovil:id/SCROLL_LAYOUT"
                 ).exists
+                and is_app_open(d)
                 and bot_status
             ):
                 d.app_stop(APP_PACKAGE)
@@ -411,7 +413,7 @@ def update_device_list():
     Actualiza la lista de dispositivos conectados vía ADB.
     """
     global listDevices
-    
+
     new_devices = adbutils.adb.device_list()
     if len(new_devices) != len(listDevices) or any(
         nd.serial != od.serial for nd, od in zip(new_devices, listDevices)
