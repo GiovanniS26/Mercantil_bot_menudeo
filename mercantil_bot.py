@@ -47,7 +47,7 @@ def login(d, password):
             if (
                 password and bot_status
             ):  # Si el usuario ingresó una contraseña en la interfaz
-                password_input.send_keys(password)
+                password_input.set_text(password)
             # Hacemos click en 'Ingresar' (por si no lo detectó click_exists anterior)
             d(text="Ingresar").click_exists(timeout=1)
 
@@ -57,25 +57,47 @@ def login(d, password):
         )  # <-- Aquí puedes intentar reemplazar con un .wait() de la siguiente vista
 
 
-def tap_menu_button(d):
+def tap_menu_button(d, index):
     """
     Hace tap en el botón que despliega el menú.
     Actualmente usa coordenadas fijas (clic en 50% ancho, ~90% alto).
     """
-    screen_size = d.window_size()
-    screen_width = screen_size[0]
-    screen_height = screen_size[1]
 
-    # Coordenadas relativas
-    rel_x = 540 / screen_width  # 50% del ancho
-    rel_y = 2159 / screen_height  # 90% del alto
+    """     screen_size = d.window_size()
+        screen_width = screen_size[0]
+        screen_height = screen_size[1]
 
-    # Convertir coordenadas relativas a absolutas
-    abs_x = int(rel_x * screen_width)
-    abs_y = int(rel_y * screen_height)
+        # Coordenadas relativas
+        rel_x = 540 / screen_width  # 50% del ancho
+        rel_y = 2159 / screen_height  # 90% del alto
 
-    d.click(abs_x, abs_y)
-    time.sleep(0.5)
+        # Convertir coordenadas relativas a absolutas
+        abs_x = int(rel_x * screen_width)
+        abs_y = int(rel_y * screen_height)
+
+        d.click(abs_x, abs_y)
+        time.sleep(0.5) """
+
+    try:
+        new_hierarchy_path = "/hierarchy/android.widget.FrameLayout[1]/android.widget.LinearLayout[1]/android.widget.FrameLayout[1]/android.widget.RelativeLayout[1]/android.widget.ScrollView[1]/android.view.ViewGroup[1]/android.view.ViewGroup[3]/android.view.ViewGroup[3]/android.widget.ImageView[1]"
+        element = d.xpath(new_hierarchy_path)
+        if element.exists:
+            element.click()
+
+        else:
+            new_hierarchy_path = "/hierarchy/android.widget.FrameLayout[2]/android.widget.LinearLayout[1]/android.widget.FrameLayout[1]/android.widget.RelativeLayout[1]/android.widget.ScrollView[1]/android.view.ViewGroup[1]/android.view.ViewGroup[3]/android.view.ViewGroup[3]/android.widget.ImageView[1]"
+            element = d.xpath(new_hierarchy_path)
+            if element.exists:
+                element.click()
+            else:
+                new_hierarchy_path = "/hierarchy/android.widget.FrameLayout[3]/android.widget.LinearLayout[1]/android.widget.FrameLayout[1]/android.widget.RelativeLayout[1]/android.widget.ScrollView[1]/android.view.ViewGroup[1]/android.view.ViewGroup[3]/android.view.ViewGroup[3]/android.widget.ImageView[1]"
+                element = d.xpath(new_hierarchy_path)
+                if element.exists:
+                    element.click()
+        time.sleep(1)
+
+    except Exception as e:
+        pass
 
 
 def enter_menudeo(d):
@@ -98,15 +120,15 @@ def enter_menudeo(d):
         time.sleep(2)
         pass
 
-    # Mientras aparezca el mensaje de error, volvemos a intentar
-    while bot_status and (
-        d(
+    """ d(
             text="¡Uuups! Algo ha salido mal... Intenta realizar esta operación más tarde."
         ).exists
         or d(
             text="¡Vaya! En este momento las Operaciones de Menudeo no se encuentran disponibles."
-        ).exists
-    ):
+        ).exists """
+
+    # Mientras aparezca el mensaje de error, volvemos a intentar
+    while bot_status and (d(text="Aceptar").exists):
         try:
             # Clic en 'Aceptar' si aparece
             if d(text="Aceptar").click_exists(timeout=1) and bot_status:
@@ -200,16 +222,20 @@ def accept_declaration(d):
     """
     Activa el switch "Acepto la Declaración Jurada" y presiona 'Continuar'.
     """
-
+    
     if not bot_status:
         return
-
-    declaration = d(text="Acepto la Declaración Jurada")
-    if declaration.exists and bot_status:
-        switch = declaration.sibling(className="android.view.ViewGroup", clickable=True)
-        if switch.click_exists(timeout=1) and bot_status:
-            d(text="Continuar").click_exists(timeout=1)
-            time.sleep(1)  # animación
+    
+    try:
+        declaration = d(text="Acepto la Declaración Jurada")
+        if declaration.exists and bot_status:
+            switch = declaration.sibling(className="android.view.ViewGroup", clickable=True)
+            if switch.click_exists(timeout=1) and bot_status:
+                d(text="Continuar").click_exists(timeout=1)
+                time.sleep(1)  # animación
+            
+    except:
+        pass
 
 
 def buy_review(d, counters):
@@ -231,12 +257,48 @@ def buy_review(d, counters):
     # Error
     if d(text="¡Uuups! Algo ha salido mal...").exists and bot_status:
         counters["failed"] += 1
-        tap_menu_button(d)
+        tap_menu_button(d, 2)
 
     # Éxito
     elif d.xpath("//*[contains(@text, '¡Listo!')]").exists and bot_status:
         counters["success"] += 1
-        tap_menu_button(d)
+        tap_menu_button(d, 2)
+
+
+def error_check():
+    # 1. Manejo de diálogos de error o atención (por si aparece)
+    if d(text="Aceptar").exists and bot_status:
+        d(text="Aceptar").click_exists(timeout=2)
+
+    # 2. Manejo de error  605 (por si aparece)
+    if (
+        d(text="Error code 605").exists
+        or d(text="Unexpected error").exists
+        and bot_status
+    ):
+        d(text="OK").click_exists(timeout=1)
+
+    # 3. Manejo de tiempo de inactividad
+    if d(text="Sí").exists and bot_status:
+        d(text="Sí").click_exists(timeout=1)
+
+    # 4. Manejo de error de pantalla negra (por si aparece)
+    if (
+        not d(resourceId="com.mercantilbanco.mercantilmovil:id/SCROLL_LAYOUT").exists
+        and is_app_open(d)
+        and bot_status
+    ):
+        time.sleep(10)
+        if (
+            not d(
+                resourceId="com.mercantilbanco.mercantilmovil:id/SCROLL_LAYOUT"
+            ).exists
+            and is_app_open(d)
+            and bot_status
+        ):
+            d.app_stop(APP_PACKAGE)
+            time.sleep(2)
+            d.app_start(APP_PACKAGE)
 
 
 # -------------------------
@@ -289,70 +351,41 @@ def start_bot():
         if not is_app_open(d) and bot_status:
             d.app_start(APP_PACKAGE)
 
-        # 2. Login (si es posible)
+        # 2. Manejo de errores
+        error_check()
+
+        # 3. Login (si es posible)
         login(d, password_entry.get())
 
-        # 3. Si no está la pantalla de "Pagos de servicios" pero sí "Resumen financiero",
+        # 4. Si no está la pantalla de "Pagos de servicios" pero sí "Resumen financiero",
         #    entonces desplegamos el menú
         if (
             not d(text="Pagos de servicios").exists
             and d(text="Resumen financiero").exists
             and bot_status
         ):
-            tap_menu_button(d)
+            tap_menu_button(d, 1)
 
-        # 4. Entrar a Menudeo
+        # 5. Entrar a Menudeo
         enter_menudeo(d)
 
-        # 5. Colocar monto
+        # 6. Colocar monto
         set_price(d, price_entry.get())
 
-        # 6. Aceptar declaración
+        # 7. Aceptar declaración
         accept_declaration(d)
 
-        # 7. Verificar resultado de la compra
+        # 8. Verificar resultado de la compra
         buy_review(d, counters)
 
-        # Actualizar contadores en la interfaz
+        # 9. Actualizar contadores en la interfaz
         failed_tries = counters["failed"]
         success_tries = counters["success"]
         failed_tries_label.config(text=f"❌ Intentos Fallidos: {failed_tries}")
         success_tries_label.config(text=f"✅ Intentos Exitosos: {success_tries}")
 
-        # 8. Manejo de diálogo de "Atención" (por si aparece)
-        if d(text="Atención").exists and bot_status:
-            d(text="Aceptar").click_exists(timeout=2)
-
-        # 8. Manejo de error (por si aparece)
-        if (
-            d(text="Error code 605").exists
-            or d(text="Unexpected error").exists
-            and bot_status
-        ):
-            d(text="OK").click_exists(timeout=1)
-
-        # 9. Manejo de error (por si aparece)
-        if d(text="Inicia sesión nuevamente").exists and bot_status:
-            d(text="Aceptar").click_exists(timeout=1)
-
-        if (
-            not d(
-                resourceId="com.mercantilbanco.mercantilmovil:id/SCROLL_LAYOUT"
-            ).exists
-            and is_app_open(d)
-            and bot_status
-        ):
-            time.sleep(10)
-            if (
-                not d(
-                    resourceId="com.mercantilbanco.mercantilmovil:id/SCROLL_LAYOUT"
-                ).exists
-                and is_app_open(d)
-                and bot_status
-            ):
-                d.app_stop(APP_PACKAGE)
-                time.sleep(2)
-                d.app_start(APP_PACKAGE)
+        # 10. Manejo de errores
+        error_check()
 
 
 def on_stop():
@@ -584,3 +617,11 @@ def run_bot():
     # Comentar esta linea para compilar para un dispositivo
     root.after(1000, update_device_list)
     root.mainloop()
+
+
+def main():
+    run_bot()
+
+
+if __name__ == "__main__":
+    main()
