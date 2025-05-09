@@ -9,7 +9,7 @@ import adbutils
 APP_PACKAGE = "com.mercantilbanco.mercantilmovil"
 
 # Al compilar para un dispositivo agregar el deviceID
-# DEVICE_ID = "pfxg8tb6gqqkrgqs"
+#DEVICE_ID = "a7pro205004889"
 
 # -------------------------
 #       LÓGICA DEL BOT
@@ -57,7 +57,7 @@ def login(d, password):
         )  # <-- Aquí puedes intentar reemplazar con un .wait() de la siguiente vista
 
 
-def tap_menu_button(d, index):
+def tap_menu_button(d):
     """
     Hace tap en el botón que despliega el menú.
     Actualmente usa coordenadas fijas (clic en 50% ancho, ~90% alto).
@@ -79,6 +79,23 @@ def tap_menu_button(d, index):
         time.sleep(0.5) """
 
     try:
+        new_hierarchy_path = "/hierarchy/android.widget.FrameLayout[1]/android.widget.LinearLayout[1]/android.widget.FrameLayout[1]/android.widget.LinearLayout[1]/android.widget.FrameLayout[1]/android.widget.RelativeLayout[1]/android.widget.ScrollView[1]/android.view.ViewGroup[1]/android.view.ViewGroup[3]/android.view.ViewGroup[3]/android.widget.ImageView[1]"
+        element = d.xpath(new_hierarchy_path)
+
+        if element.exists:
+            element.click()
+
+        else:
+            new_hierarchy_path = "/hierarchy/android.widget.FrameLayout[2]/android.widget.LinearLayout[1]/android.widget.FrameLayout[1]/android.widget.LinearLayout[1]/android.widget.FrameLayout[1]/android.widget.RelativeLayout[1]/android.widget.ScrollView[1]/android.view.ViewGroup[1]/android.view.ViewGroup[3]/android.view.ViewGroup[3]/android.widget.ImageView[1]"
+            element = d.xpath(new_hierarchy_path)
+            if element.exists:
+                element.click()
+            else:
+                new_hierarchy_path = "/hierarchy/android.widget.FrameLayout[3]/android.widget.LinearLayout[1]/android.widget.FrameLayout[1]/android.widget.LinearLayout[1]/android.widget.FrameLayout[1]/android.widget.RelativeLayout[1]/android.widget.ScrollView[1]/android.view.ViewGroup[1]/android.view.ViewGroup[3]/android.view.ViewGroup[3]/android.widget.ImageView[1]"
+                element = d.xpath(new_hierarchy_path)
+                if element.exists:
+                    element.click()
+
         new_hierarchy_path = "/hierarchy/android.widget.FrameLayout[1]/android.widget.LinearLayout[1]/android.widget.FrameLayout[1]/android.widget.RelativeLayout[1]/android.widget.ScrollView[1]/android.view.ViewGroup[1]/android.view.ViewGroup[3]/android.view.ViewGroup[3]/android.widget.ImageView[1]"
         element = d.xpath(new_hierarchy_path)
         if element.exists:
@@ -113,7 +130,11 @@ def enter_menudeo(d):
     if (
         d(text="Operaciones de Menudeo").exists(timeout=5) and bot_status
     ):  # Espera hasta 5 segundos
-        d(text="Operaciones de Menudeo").click()
+        try:
+            d(text="Operaciones de Menudeo").click()
+        except Exception as e:
+            pass
+        
 
     # Ahora revisamos si hay "Comprar divisas"
     if d(text="Comprar divisas").click_exists(timeout=1) and bot_status:
@@ -222,18 +243,20 @@ def accept_declaration(d):
     """
     Activa el switch "Acepto la Declaración Jurada" y presiona 'Continuar'.
     """
-    
+
     if not bot_status:
         return
-    
+
     try:
         declaration = d(text="Acepto la Declaración Jurada")
         if declaration.exists and bot_status:
-            switch = declaration.sibling(className="android.view.ViewGroup", clickable=True)
+            switch = declaration.sibling(
+                className="android.view.ViewGroup", clickable=True
+            )
             if switch.click_exists(timeout=1) and bot_status:
                 d(text="Continuar").click_exists(timeout=1)
                 time.sleep(1)  # animación
-            
+
     except:
         pass
 
@@ -257,38 +280,33 @@ def buy_review(d, counters):
     # Error
     if d(text="¡Uuups! Algo ha salido mal...").exists and bot_status:
         counters["failed"] += 1
-        tap_menu_button(d, 2)
+        tap_menu_button(d)
 
     # Éxito
     elif d.xpath("//*[contains(@text, '¡Listo!')]").exists and bot_status:
         counters["success"] += 1
-        tap_menu_button(d, 2)
+        tap_menu_button(d)
 
 
 def error_check():
-    # 1. Manejo de diálogos de error o atención (por si aparece)
-    if d(text="Aceptar").exists and bot_status:
-        d(text="Aceptar").click_exists(timeout=2)
+    try:
+        # 1. Manejo de diálogos de error o atención (por si aparece)
+        if d(text="Aceptar").exists and bot_status:
+            d(text="Aceptar").click_exists(timeout=2)
 
-    # 2. Manejo de error  605 (por si aparece)
-    if (
-        d(text="Error code 605").exists
-        or d(text="Unexpected error").exists
-        and bot_status
-    ):
-        d(text="OK").click_exists(timeout=1)
+        # 2. Manejo de error  605 (por si aparece)
+        if (
+            d(text="Error code 605").exists
+            or d(text="Unexpected error").exists
+            and bot_status
+        ):
+            d(text="OK").click_exists(timeout=1)
 
-    # 3. Manejo de tiempo de inactividad
-    if d(text="Sí").exists and bot_status:
-        d(text="Sí").click_exists(timeout=1)
+        # 3. Manejo de tiempo de inactividad
+        if d(text="Sí").exists and bot_status:
+            d(text="Sí").click_exists(timeout=1)
 
-    # 4. Manejo de error de pantalla negra (por si aparece)
-    if (
-        not d(resourceId="com.mercantilbanco.mercantilmovil:id/SCROLL_LAYOUT").exists
-        and is_app_open(d)
-        and bot_status
-    ):
-        time.sleep(10)
+        # 4. Manejo de error de pantalla negra (por si aparece)
         if (
             not d(
                 resourceId="com.mercantilbanco.mercantilmovil:id/SCROLL_LAYOUT"
@@ -296,9 +314,19 @@ def error_check():
             and is_app_open(d)
             and bot_status
         ):
-            d.app_stop(APP_PACKAGE)
-            time.sleep(2)
-            d.app_start(APP_PACKAGE)
+            time.sleep(10)
+            if (
+                not d(
+                    resourceId="com.mercantilbanco.mercantilmovil:id/SCROLL_LAYOUT"
+                ).exists
+                and is_app_open(d)
+                and bot_status
+            ):
+                d.app_stop(APP_PACKAGE)
+                time.sleep(2)
+                d.app_start(APP_PACKAGE)
+    except Exception as e:
+        pass
 
 
 # -------------------------
@@ -364,7 +392,7 @@ def start_bot():
             and d(text="Resumen financiero").exists
             and bot_status
         ):
-            tap_menu_button(d, 1)
+            tap_menu_button(d)
 
         # 5. Entrar a Menudeo
         enter_menudeo(d)
